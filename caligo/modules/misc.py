@@ -94,6 +94,7 @@ class Misc(module.Module):
         if task.result() is None:
             return "__Transmission aborted.__"
 
+        await ctx.msg.delete()
         return
 
     @command.desc("Abort transmission of upload or download")
