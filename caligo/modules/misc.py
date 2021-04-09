@@ -135,7 +135,7 @@ class Misc(module.Module):
 
         gid = ctx.input
         if aria2 is None and gid:
-            return "__Aria2 is not installed in system.__"
+            return "__Aria2 is not loaded.__"
 
         ret = await aria2.cancelMirror(gid)
         if ret is None:
