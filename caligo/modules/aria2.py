@@ -37,6 +37,9 @@ class Aria2WebSocket:
         self.seedTask: List[asyncio.Task] = []
 
     @classmethod
+    @retry(wait=wait_random_exponential(multiplier=2, min=3, max=6),
+           stop=stop_after_attempt(5),
+           retry=retry_if_exception_type(ConnectionRefusedError))
     async def init(cls, api: "Aria2") -> "Aria2WebSocket":
         if api.bot.getConfig.downloadPath is None:
             path = Path.home() / "downloads"
@@ -356,6 +359,11 @@ class Aria2(module.Module):
         self.invoker = None
         self.lock = asyncio.Lock()
         self.stopping = False
+
+        if not self.bot.modules.get("GoogleDrive"):
+            self.log.warning("Aria2 works if GoogleDrive sucessfully loaded")
+            self.bot.unload_module(self)
+            return
 
     async def on_started(self) -> None:
         try:
