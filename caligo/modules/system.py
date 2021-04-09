@@ -304,7 +304,7 @@ Time: {el_str}"""
 
     async def run_workflows(self) -> None:
         headers = {"accept": "application/vnd.github.v3+json"}
-        payload = {"ref": "refs/heads/staging"}
+        payload = {"ref": "refs/heads/alpha"}
 
         user = self.bot.getConfig.github_repo.split("/")[0]
         repo = self.bot.getConfig.github_repo.split("/")[1]
