@@ -126,6 +126,7 @@ class SystemModule(module.Module):
         elif stdout[-1:] != "\n":
             stdout += "\n"
 
+        stdout = self.bot.redact_message(stdout)
         err = f"⚠️ Return code: {ret}" if ret != 0 else ""
         return f"**In:**\n```{snip}```\n\n**Out:**\n```{stdout}```{err}{el_str}"
 
@@ -253,13 +254,11 @@ Time: {el_str}"""
             {"_id": self.name},
             {
                 "$set": {
-                    "restart": {
-                        "status_chat_id": resp_msg.chat.id,
-                        "status_message_id": resp_msg.message_id,
-                        "time": restart_time or util.time.usec(),
-                        "reason": reason
+                    "restart.status_chat_id": resp_msg.chat.id,
+                    "restart.status_message_id": resp_msg.message_id,
+                    "restart.time": restart_time or util.time.usec(),
+                    "restart.reason": reason
                     }
-                }
             },
             upsert=True
         )
@@ -271,14 +270,15 @@ Time: {el_str}"""
 
     async def on_start(self, time_us: int) -> None:  # skipcq: PYL-W0613
         # Update restart status message if applicable
-        data: Optional[Dict[Union[str, int]]] = await self.db.find_one({"_id": self.name})
+        data: Optional[Dict[Union[str, int]]
+                       ] = await self.db.find_one({"_id": self.name})
         if data is not None:
             restart = data.get("restart")
             # Fetch status message info
             rs_time: Optional[int] = restart.get("time")
             rs_chat_id: Optional[int] = restart.get("status_chat_id")
             rs_message_id: Optional[int] = restart.get("status_message_id")
-            rs_reason: Optional[str] = restart.get("restart_reason")
+            rs_reason: Optional[str] = restart.get("reason")
 
             # Delete DB keys first in case message editing fails
             await self.db.delete_one({"_id": self.name})
@@ -359,14 +359,12 @@ Time: {el_str}"""
                 await self.db.find_one_and_update(
                     {"_id": self.name},
                     {
-                        "$set": {
-                            "restart": {
-                                "status_chat_id": resp_msg.chat.id,
-                                "status_message_id": resp_msg.message_id,
-                                "time": update_time,
-                                "reason": "update"
-                            }
-                        }
+                       "$set": {
+                           "restart.status_chat_id": resp_msg.chat.id,
+                           "restart.status_message_id": resp_msg.message_id,
+                           "restart.time": update_time,
+                           "restart.reason": "update"
+                       }
                     },
                     upsert=True
                 )

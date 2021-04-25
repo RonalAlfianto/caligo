@@ -1,4 +1,16 @@
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Optional, Sequence, Union
+import asyncio
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Coroutine,
+    List,
+    Match,
+    Optional,
+    Pattern,
+    Sequence,
+    Union,
+)
 
 import pyrogram
 
@@ -44,6 +56,16 @@ def alias(*aliases: str) -> Decorator:
     return alias_decorator
 
 
+def pattern(_pattern: Pattern[str]) -> Decorator:
+    """Sets regex pattern on a command function."""
+
+    def pattern_decorator(func: CommandFunc) -> CommandFunc:
+        setattr(func, "_cmd_pattern", _pattern)
+        return func
+
+    return pattern_decorator
+
+
 class Command:
     name: str
     desc: str
@@ -51,6 +73,7 @@ class Command:
     usage_optional: bool
     usage_reply: bool
     aliases: Sequence[str]
+    pattern: Pattern[str]
     module: Any
     func: CommandFunc
 
@@ -61,6 +84,7 @@ class Command:
         self.usage_optional = getattr(func, "_cmd_usage_optional", False)
         self.usage_reply = getattr(func, "_cmd_usage_reply", False)
         self.aliases = getattr(func, "_cmd_aliases", [])
+        self.pattern = getattr(func, "_cmd_pattern", None)
         self.module = mod
         self.func = func
 
@@ -77,14 +101,11 @@ class Context:
 
     input: Optional[Union[str, None]]
     args: Sequence[str]
+    matches: Union[List[Match], None]
 
-    def __init__(
-        self,
-        bot: "Bot",
-        msg: pyrogram.types.Message,
-        segments: Sequence[str],
-        cmd_len: int,
-    ) -> None:
+    def __init__(self, bot: "Bot", msg: pyrogram.types.Message,
+                 segments: Sequence[str], cmd_len: int,
+                 matches: Union[Match[str], None]) -> None:
         self.bot = bot
         self.msg = msg
         self.segments = segments
@@ -95,14 +116,14 @@ class Context:
         self.response_mode = None
 
         self.input = self.msg.text[self.cmd_len:]
+        self.matches = matches
 
     def __getattr__(self, name: str) -> Any:
         if name == "args":
             return self._get_args()
 
         raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'"
-        )
+            f"'{type(self).__name__}' object has no attribute '{name}'")
 
     # Argument segments
     def _get_args(self) -> Sequence[str]:
@@ -117,6 +138,7 @@ class Context:
         redact: Optional[bool] = None,
         msg: Optional[pyrogram.types.Message] = None,
         reuse_response: bool = False,
+        delete_after: Optional[Union[int, float]] = None,
         **kwargs: Any,
     ) -> pyrogram.types.Message:
 
@@ -131,6 +153,15 @@ class Context:
             **kwargs,
         )
         self.response_mode = mode
+
+        if delete_after is not None:
+
+            async def delete() -> bool:
+                await asyncio.sleep(delete_after)
+                return await self.response.delete()
+
+            self.bot.loop.create_task(delete())
+
         return self.response
 
     async def respond_multi(
@@ -153,6 +184,8 @@ class Context:
             if reuse_response is None:
                 reuse_response = False
 
-        return await self.respond(
-            *args, mode=mode, msg=msg, reuse_response=reuse_response, **kwargs
-        )
+        return await self.respond(*args,
+                                  mode=mode,
+                                  msg=msg,
+                                  reuse_response=reuse_response,
+                                  **kwargs)

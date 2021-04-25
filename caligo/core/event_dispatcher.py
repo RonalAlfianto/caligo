@@ -1,6 +1,15 @@
 import asyncio
 import bisect
-from typing import TYPE_CHECKING, Any, MutableMapping, MutableSequence
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    MutableMapping,
+    MutableSequence,
+    Optional,
+)
+
+from pyrogram.filters import Filter
+from pyrogram.types import CallbackQuery, InlineQuery, Message
 
 from .. import module, util
 from ..listener import Listener, ListenerFunc
@@ -23,9 +32,11 @@ class EventDispatcher(Base):
         mod: module.Module,
         event: str,
         func: ListenerFunc,
-        priority: int = 100,
+        *,
+        priority: Optional[int] = 100,
+        regex: Filter = None
     ) -> None:
-        listener = Listener(event, func, mod, priority)
+        listener = Listener(event, func, mod, priority, regex)
 
         if event in self.listeners:
             bisect.insort(self.listeners[event], listener)
@@ -50,7 +61,10 @@ class EventDispatcher(Base):
                                        func,
                                        priority=getattr(func,
                                                         "_listener_priority",
-                                                        100))
+                                                        100),
+                                       regex=getattr(func,
+                                                     "_listener_regex",
+                                                     None))
                 done = True
             finally:
                 if not done:
@@ -83,8 +97,23 @@ class EventDispatcher(Base):
             return
 
         for lst in listeners:
+            if lst.regex is not None:
+                for arg in args:
+                    if isinstance(arg, (CallbackQuery, InlineQuery, Message)):
+                        match = await lst.regex(self.client, arg)
+                        if not match:
+                            continue
+
+                        break
+                else:
+                    self.log.error(f"'{event}' can't be used with pattern")
+                    continue
+
             task = self.loop.create_task(lst.func(*args, **kwargs))
             tasks.add(task)
+
+        if not tasks:
+            return
 
         self.log.debug("Dispatching event '%s' with data %s", event, args)
         if wait:

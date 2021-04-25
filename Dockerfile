@@ -33,6 +33,7 @@ WORKDIR /src
 COPY . .
 RUN pip install --upgrade pip
 RUN pip install wheel
+RUN pip install aiohttp[speedups]
 RUN pip install uvloop
 RUN pip install .
 
@@ -90,6 +91,20 @@ RUN cp /home/caligo/bot /usr/local/bin
 # Download aria with sftp and gzip support
 RUN curl -LJO https://techdro.id/techdroid/aria2-1.35.0-r3.apk
 RUN apk add --allow-untrusted --no-cache aria2-1.35.0-r3.apk
+
+# Certs for aria2 https websocket
+RUN mkdir -p /home/caligo/.cache/caligo/.certs
+
+# Initialize mkcert
+RUN curl -LJO https://github.com/FiloSottile/mkcert/releases/download/v1.4.3/mkcert-v1.4.3-linux-amd64
+RUN mv mkcert-v1.4.3-linux-amd64 /usr/local/bin/mkcert
+RUN chmod +x /usr/local/bin/mkcert
+
+RUN mkcert -install
+RUN mkcert -key-file /home/caligo/.cache/caligo/.certs/key.pem -cert-file /home/caligo/.cache/caligo/.certs/cert.pem localhost 127.0.0.1
+
+# Change permission of home folder
+RUN chown -hR caligo /home/caligo
 
 # Set runtime settings
 USER caligo

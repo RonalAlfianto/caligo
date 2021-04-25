@@ -13,7 +13,7 @@ from pyrogram.handlers import (
 from pyrogram.handlers.handler import Handler
 
 from ..custom_filter import chat_action
-from ..util import BotConfig, silent, time, tg
+from ..util import BotConfig, time, tg
 from .base import Base
 
 if TYPE_CHECKING:
@@ -109,10 +109,9 @@ class TelegramBot(Base):
         await self.dispatch_event("load")
         self.loaded = True
 
-        async with silent():
-            await self.client.start()
-            if self.has_bot:
-                await self.client.bot.start()
+        await self.client.start()
+        if self.has_bot:
+            await self.client.bot.start()
 
         user = await self.client.get_me()
         if not isinstance(user, pyrogram.types.User):
@@ -199,8 +198,7 @@ class TelegramBot(Base):
         self.update_module_event("message_delete", DeletedMessagesHandler)
         self.update_module_event("chat_action", MessageHandler, chat_action())
         if self.has_bot:
-            self.update_bot_module_event("callback_query", CallbackQueryHandler,
-                                         filters.regex(pattern=r"menu\((\w+)\)"))
+            self.update_bot_module_event("callback_query", CallbackQueryHandler)
             self.update_bot_module_event("inline_query", InlineQueryHandler)
 
     @property
@@ -209,12 +207,13 @@ class TelegramBot(Base):
 
     @property
     def has_bot(self: "Bot") -> bool:
-        return hasattr(self.client, "bot")
+        return hasattr(self.client, "bot"
+                       ) and isinstance(self.client.bot, Client)
 
     def redact_message(self: "Bot", text: str) -> str:
         redacted = "[REDACTED]"
 
-        api_id = self.getConfig.api_hash
+        api_id = str(self.getConfig.api_id)
         api_hash = self.getConfig.api_hash
         db_uri = self.getConfig.db_uri
         gdrive_secret = self.getConfig.gdrive_secret
@@ -259,7 +258,7 @@ class TelegramBot(Base):
                 text = self.redact_message(text)
 
             # send as file if text > 4096
-            if len(text) > tg.MESSAGE_CHAR_LIMIT:
+            if len(str(text)) > tg.MESSAGE_CHAR_LIMIT:
                 await msg.edit("Sending output as a file.")
                 response = await tg.send_as_document(
                     text,

@@ -14,7 +14,7 @@ from pyrogram.types import (
     InputTextMessageContent
 )
 
-from .. import __version__, command, module, util
+from .. import __version__, command, listener, module, util
 
 
 class CoreModule(module.Module):
@@ -91,6 +91,7 @@ class CoreModule(module.Module):
         await query.answer(results=answer, cache_time=3)
         return
 
+    @listener.pattern(r"menu\((\w+)\)$")
     async def on_callback_query(self, query: CallbackQuery) -> None:
         if query.from_user and query.from_user.id != self.bot.uid:
             await query.answer("Sorry, you don't have permission to access.",
@@ -112,9 +113,15 @@ class CoreModule(module.Module):
                 except pyrogram.errors.PeerIdInvalid:
                     continue
                 else:
-                    await msg.delete()
-                    del self.cache[msg_id]
-                    break
+                    try:
+                        await msg.delete()
+                    except AttributeError:
+                        # Trying to delete the deleted message already
+                        del self.cache[msg_id]
+                        continue
+                    else:
+                        del self.cache[msg_id]
+                        break
             else:
                 await query.answer("😿️ Couldn't close expired message")
                 await query.edit_message_text(
@@ -152,7 +159,6 @@ class CoreModule(module.Module):
         await query.answer(f"😿️ {mod} doesn't have any commands.")
         return
 
-
     @command.desc("List the commands")
     @command.usage("[filter: command or module name?]", optional=True)
     async def cmd_help(self, ctx: command.Context):
@@ -162,7 +168,7 @@ class CoreModule(module.Module):
                 self.bot.bot_user.username)
             res = await self.bot.client.send_inline_bot_result(
                 ctx.msg.chat.id, response.query_id, response.results[1].id)
-            self.cache[res.updates[-1].message.id] = ctx.msg.chat.id
+            self.cache[res.updates[0].id] = ctx.msg.chat.id
 
             return
 
